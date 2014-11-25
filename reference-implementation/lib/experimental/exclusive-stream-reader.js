@@ -84,4 +84,26 @@ class ReadableStream {
 
     // every place that currently does rejectPipeToPromise or resolvePipeToPromise should also do reader.release().
   }
+
+  get ready() {
+    if (this._exclusiveReaderToken !== undefined) {
+      throw new TypeError("This stream is locked to a single exclusive reader and cannot be used directly.");
+    }
+    return this._readyPromise;
+  }
+
+  get state() {
+    if (this._exclusiveReaderToken !== undefined) {
+      throw new TypeError("This stream is locked to a single exclusive reader and cannot be used directly.");
+    }
+    return this._state;
+  }
+
+  read() {
+    if (this._exclusiveReaderToken !== undefined) {
+      throw new TypeError("This stream is locked to a single exclusive reader and cannot be used directly.");
+    }
+
+    return ReadFromReadableStream(this);
+  }
 }
