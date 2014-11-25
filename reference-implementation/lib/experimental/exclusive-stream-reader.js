@@ -1,5 +1,49 @@
 // NB: not executable, just for prototyping.
 
+// Example usage:
+
+var readableStream = getReadableStreamFromSomewhere();
+
+readableStream.read(); // works
+readableStream.state === 'readable'; // works
+readableStream.ready.then(readMoreFromStream); // works
+
+var reader = readableStream.getExclusiveReader();
+
+readableStream.read(); // throws "the stream is locked" error
+readableStream.state; // throws---or always returns "waiting"?
+readableStream.ready; // throws---or returns a promise fulfilled when the stream becomes both unlocked and readable?
+
+reader.read(); // works
+reader.state === 'readable'; // works
+reader.ready.then(readMoreFromReader); // works
+
+// should these work? currently they are undefined
+reader.closed.then(onClosed, onErrored);
+reader.pipeTo(dest); // should be unnecessary since readableStream.pipeTo(dest) automatically locks
+
+readableStream.getExclusiveReader(); // throws; only one exclusive reader at a time
+
+reader.release();
+
+readableStream.read(); // works again; same for the others
+
+reader.read(); // throws; lock has been released.
+
+// To illustrate how piping auto-locks:
+
+readableStream.pipeTo(dest);
+readableStream.read(); // throws, same as with a manual lock
+readableStream.state; // throws (or returns "waiting", see above)
+readableStream.ready; // throws (or returns ... see above)
+
+// This piping auto-locking is important so that if you pipe e.g. two file descriptors together the implementation can
+// hook them together directly, off-thread, without the JS thread being able to interfere or observe. That is the main
+// goal.
+
+// We could also accomplish this in an ad-hoc way by adding a tiny bit of magic to pipeTo, so that it's no longer
+// using purely public APIs.
+
 class ExclusiveStreamReader {
   constructor(token, { read, getReady, getState, releaseLock }) {
     this._token = token;
