@@ -86,13 +86,16 @@ class ReadableStream {
     this._exclusiveReaderToken = {};
 
     return new ExclusiveStreamReader(this._exclusiveReaderToken, {
-      read: token => {
+      read: (token, ...args) => {
         if (this._exclusiveReaderToken !== token) {
           throw new TypeError("This stream reader has released its lock on the original stream and can no " +
             "longer be used");
         }
 
-        return ReadFromReadableStream(this);
+        this._exclusiveReaderToken = null;
+        const chunk = this.read(...args);
+        this._exclusiveReaderToken = token;
+        return chunk;
       },
       getReady: token => {
         if (this._exclusiveReaderToken !== token) {
@@ -100,7 +103,10 @@ class ReadableStream {
             "longer be used");
         }
 
-        return this._readyPromise;
+        this._exclusiveReaderToken = null;
+        const ready = this.ready;
+        this._exclusiveReaderToken = token;
+        return ready;
       },
       getState: token => {
         if (this._exclusiveReaderToken !== token) {
@@ -108,7 +114,10 @@ class ReadableStream {
             "longer be used");
         }
 
-        return this._state;
+        this._exclusiveReaderToken = null;
+        const state = this.state;
+        this._exclusiveReaderToken = token;
+        return ready;
       },
       releaseLock: token => {
         if (this._exclusiveReaderToken !== token) {
@@ -147,7 +156,6 @@ class ReadableStream {
     if (this._exclusiveReaderToken !== undefined) {
       throw new TypeError("This stream is locked to a single exclusive reader and cannot be used directly.");
     }
-
-    return ReadFromReadableStream(this);
+    // Original algorithm goes here
   }
 }
