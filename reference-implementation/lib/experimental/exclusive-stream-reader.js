@@ -45,30 +45,58 @@ readableStream.ready; // throws (or returns ... see above)
 // using purely public APIs.
 
 class ExclusiveStreamReader {
-  constructor(token, { read, getReady, getState, releaseLock }) {
+  constructor(stream, token, { getToken, setToken }) {
+    this._stream = stream;
     this._token = token;
-    this._read = read;
-    this._getReady = getReady;
-    this._getState = getState;
-    this._releaseLock = releaseLock;
-
+    this._getToken = getToken;
+    this._setToken = setToken;
     // Check types? Or fail later? Meh.
   }
 
   get ready() {
-    return this._getReady(this._token);
+    if (this._getToken() !== this._token) {
+      throw new TypeError("This stream reader has released its lock on the original stream and can no " +
+                          "longer be used");
+    }
+
+    this._setToken(undefined);
+    try {
+      return this._stream.ready;
+    } finally {
+      this._setToken(this._token);
+    }
   }
 
   get state() {
-    return this._getState(this._token);
+    if (this._getToken() !== this._token) {
+      throw new TypeError("This stream reader has released its lock on the original stream and can no " +
+                          "longer be used");
+    }
+
+    this._setToken(undefined);
+    try {
+      return this._stream.state;
+    } finally {
+      this._setToken(this._token);
+    }
   }
 
   read(...args) {
-    return this._read(token, ...args);
+    if (this._getToken() !== this._token) {
+      throw new TypeError("This stream reader has released its lock on the original stream and can no " +
+                          "longer be used");
+    }
+
+    this._setToken(undefined);
+    try {
+      return this._stream.read(...args);
+    } finally {
+      this._setToken(this._token);
+    }
   }
 
   release() {
-    return this._releaseLock(token);
+    this._setToken(undefined);
   }
 }
 
@@ -85,48 +113,9 @@ class ReadableStream {
 
     this._exclusiveReaderToken = {};
 
-    return new ExclusiveStreamReader(this._exclusiveReaderToken, {
-      read: (token, ...args) => {
-        if (this._exclusiveReaderToken !== token) {
-          throw new TypeError("This stream reader has released its lock on the original stream and can no " +
-            "longer be used");
-        }
-
-        this._exclusiveReaderToken = null;
-        const chunk = this.read(...args);
-        this._exclusiveReaderToken = token;
-        return chunk;
-      },
-      getReady: token => {
-        if (this._exclusiveReaderToken !== token) {
-          throw new TypeError("This stream reader has released its lock on the original stream and can no " +
-            "longer be used");
-        }
-
-        this._exclusiveReaderToken = null;
-        const ready = this.ready;
-        this._exclusiveReaderToken = token;
-        return ready;
-      },
-      getState: token => {
-        if (this._exclusiveReaderToken !== token) {
-          throw new TypeError("This stream reader has released its lock on the original stream and can no " +
-            "longer be used");
-        }
-
-        this._exclusiveReaderToken = null;
-        const state = this.state;
-        this._exclusiveReaderToken = token;
-        return ready;
-      },
-      releaseLock: token => {
-        if (this._exclusiveReaderToken !== token) {
-          throw new TypeError("This stream reader has released its lock on the original stream and can no " +
-            "longer be used");
-        }
-
-        this._exclusiveReaderToken = undefined;
-      }
+    return new ExclusiveStreamReader(this, this._exclusiveReaderToken, {
+      getToken: () => this._exclusiveReaderToken,
+      setToken: token => this._exclusiveReaderToken = token
     });
   }
 
