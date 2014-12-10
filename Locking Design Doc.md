@@ -97,3 +97,26 @@ We can work around this if necessary by passing `ExclusiveStreamReader` any capa
 
 This would probably impact API, by switching us to a `rs.getReader()` interface that calls the constructor, instead of a `new ExclusiveStreamReader(stream)` interface.
 
+## Optimizability
+
+The need to support subclassing, via `ExclusiveStreamReader` delegating to the `ReadableStream` implementation, conflicts a bit with the desire for readers to be fast. However, this can be fixed with some cleverness.
+
+The spec semantics for e.g. `reader.read()` are essentially:
+
+- Check that `reader@[[stream]]` is locked to `reader`.
+- Unlock `reader@[[stream]]`.
+- Try `return reader@[[stream]].read()`; finally re-lock `reader@[[stream]]`.
+
+This will ensure that if `reader@[[stream]]` is a subclass of `ReadableStream`, it will polymorphically dispatch to the subclass's `read` method. However, this kind of try/finally pattern is not very optimizable in V8.
+
+Here is an optimization that can be performed instead, with slight tweaks to both `ReadableStream.prototype.read` and `ExclusiveStreamReader.prototype.read`:
+
+- Define `ReadableStream.prototype.read` as:
+    - Check that `this` is not locked.
+    - Return `ReadFromReadableStream(this)`. (That is, extract the main functionality, without the check, into its own function.)
+- Define `ExclusiveStreamReader.prototype.read` like so:
+    - Check that `this@[[stream]]` is locked to `this`.
+    - If `this@[[stream]].read` is equal to the original `ReadableStream.prototype.read`: return `ReadFromReadableStream(this@[[stream]])`.
+    - Otherwise, proceed via the per-spec semantics above.
+
+This essentially ensures that all undisturbed readable streams, or readable stream subclasses that do not override `read`, go down the "fast path" by ignoring all the try/finally and lock/unlock business. It is unobservable, since we have checked that `read` has not been modified in any way.
