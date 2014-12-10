@@ -71,8 +71,7 @@ export default class ReadableStream {
     }
 
     this._queue = [];
-    this._state = 'closed';
-    this._resolveClosedPromise(undefined);
+    CloseReadableStream(this);
 
     var sourceCancelPromise = helpers.promiseCall(this._onCancel, reason);
     return sourceCancelPromise.then(() => undefined);
@@ -195,8 +194,7 @@ export default class ReadableStream {
 
     if (this._queue.length === 0) {
       if (this._draining === true) {
-        this._state = 'closed';
-        this._resolveClosedPromise(undefined);
+        CloseReadableStream(this);
       } else {
         this._state = 'waiting';
         this._initReadyPromise();
@@ -284,8 +282,7 @@ function CreateReadableStreamCloseFunction(stream) {
   return () => {
     if (stream._state === 'waiting') {
       stream._resolveReadyPromise(undefined);
-      stream._resolveClosedPromise(undefined);
-      stream._state = 'closed';
+      CloseReadableStream(stream);
     }
     if (stream._state === 'readable') {
       stream._draining = true;
@@ -362,6 +359,17 @@ function ShouldReadableStreamApplyBackpressure(stream) {
   return shouldApplyBackpressure;
 }
 
+function CloseReadableStream(stream) {
+  stream._state = 'closed';
+  stream._resolveClosedPromise(undefined);
+
+  if (stream._reader === undefined) {
+    return;
+  }
+
+  stream._reader.releaseLock();
+}
+
 var defaultReadableStreamStrategy = {
   shouldApplyBackpressure(queueSize) {
     assert(typeof queueSize === 'number' && !Number.isNaN(queueSize));
@@ -373,9 +381,13 @@ var defaultReadableStreamStrategy = {
 };
 
 function getReadableStreamReader(stream) {
+  assert(typeof stream === 'object' && stream !== null, 'stream must be an object');
+
   return stream._reader;
 }
 
 function setReadableStreamReader(stream, reader) {
+  assert(typeof stream === 'object' && stream !== null, 'stream must be an object');
+
   stream._reader = reader;
 }
