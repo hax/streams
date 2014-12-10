@@ -27,7 +27,7 @@ Example code:
 ```js
 function readAsJson(rs) {
     var string = "";
-    var reader = new ExclusiveStreamReader(rs);
+    var reader = rs.getReader();
 
     pump();
 
@@ -63,21 +63,9 @@ The reader should have all of the non-piping-related public interface of the str
 - `read()` method, which has the same behavior as that of the stream's except that it works while the stream is locked
 - `cancel()` method, which first calls `this.releaseLock()` before the pass-through
 
-Additionally, it should be possible to check whether a stream is locked. A few candidate syntaxes:
+Additionally, it is probably a good idea to be able to tell if a reader is still active/has been released. We propose `reader.isActive`.
 
-```js
-stream.isLocked
-ExclusiveStreamReader.isLocked(stream)
-```
-
-Finally it is probably a good idea to be able to tell if a reader is still active/has been released. One of these two maybe:
-
-```js
-reader.isReleased
-reader.isActive // inverse
-```
-
-(For now we have settled on `ExclusiveStreamReader.isLocked(stream)` and `reader.isActive`.)
+It might be useful to, given a stream, tell if it is locked. However, I argue that this is not necessary, and could be viewed as an unnecessary information leak. We could add it back later if there's a compelling use case.
 
 ### Level 2: subclassers of `ReadableStream`
 
@@ -93,19 +81,21 @@ It is unclear whether this is necessary, but up until now we have a high level o
 
 If we encourage this kind of thing, we should make it easy for custom readable streams to be lockable as well. That basically means `ExclusiveStreamReader` should not require knowledge of `ReadableStream`'s internal slots.
 
-We can work around this if necessary by passing `ExclusiveStreamReader` any capabilities it needs to manipulate `ReadableStream`'s internal state; then people reimplementing the readable stream interface can do e.g. `new ExclusiveStreamReader(this, { getLock, setLock })` or similar.
+We can work around this if necessary by passing `ExclusiveStreamReader` any capabilities it needs to manipulate `ReadableStream`'s internal state; then people reimplementing the readable stream interface can do e.g. `new ExclusiveStreamReader(this, { getReader, setReader })` or similar.
 
-This would probably impact API, by switching us to a `rs.getReader()` interface that calls the constructor, instead of a `new ExclusiveStreamReader(stream)` interface.
+This would impact the API by mandating a `rs.getReader()` interface that calls the constructor, instead of a `new ExclusiveStreamReader(stream)` interface.
+
+One benefit of doing this is that it makes `ReadableByteStream` less "special." Without a mechanism like this, we'd need to hard-code in support for both `ReadableStream` and `ReadableByteStream`.
 
 ## Optimizability
 
-The need to support subclassing, via `ExclusiveStreamReader` delegating to the `ReadableStream` implementation, conflicts a bit with the desire for readers to be fast. However, this can be fixed with some cleverness.
+The need to support subclassing, via `ExclusiveStreamReader` delegating to the `ReadableStream` implementation, conflicts a bit with the desire for readers to be fast. Similarly, the need to support custom readable stream implementations means indirecting through the `getReader` and `setReader` functions. However, this can be fixed with some cleverness.
 
 The spec semantics for e.g. `reader.read()` are essentially:
 
-- Check that `reader@[[stream]]` is locked to `reader`.
-- Unlock `reader@[[stream]]`.
-- Try `return reader@[[stream]].read()`; finally re-lock `reader@[[stream]]`.
+- Check that `reader@[[stream]]` is locked to `reader`, using `getReader(reader@[[stream]]) === reader`.
+- Unlock `reader@[[stream]]` using `setReader(reader@[[stream]], undefined)`.
+- Try `return reader@[[stream]].read()`; finally re-lock `reader@[[stream]]` using `setReader(reader@[[stream]], reader)`.
 
 This will ensure that if `reader@[[stream]]` is a subclass of `ReadableStream`, it will polymorphically dispatch to the subclass's `read` method. However, this kind of try/finally pattern is not very optimizable in V8.
 
@@ -115,7 +105,7 @@ Here is an optimization that can be performed instead, with slight tweaks to bot
     - Check that `this` is not locked.
     - Return `ReadFromReadableStream(this)`. (That is, extract the main functionality, without the check, into its own function.)
 - Define `ExclusiveStreamReader.prototype.read` like so:
-    - Check that `this@[[stream]]` is locked to `this`.
+    - Check that `this@[[stream]]` is locked to `this`, using `getReader(reader@[[stream]]) === reader` which should be inline-able in the case of the built-in `getReader` instances.
     - If `this@[[stream]].read` is equal to the original `ReadableStream.prototype.read`: return `ReadFromReadableStream(this@[[stream]])`.
     - Otherwise, proceed via the per-spec semantics above.
 

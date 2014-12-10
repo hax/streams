@@ -1,16 +1,24 @@
 var assert = require('assert');
 
 export default class ExclusiveStreamReader {
-  constructor(stream) {
-    ensureIsRealStream(stream);
+  constructor(stream, { getReader, setReader }) {
+    if (typeof getReader !== 'function') {
+      throw new TypeError('lock must be a function');
+    }
 
-    if (stream._reader !== undefined) {
+    if (typeof setReader !== 'function') {
+      throw new TypeError('unlock must be a function');
+    }
+
+    if (getReader(stream) !== undefined) {
       throw new TypeError('This stream has already been locked for exclusive reading by another reader');
     }
 
-    stream._reader = this;
+    setReader(stream, this);
 
     this._stream = stream;
+    this._getReader = getReader;
+    this._setReader = setReader;
 
     this._lockReleased = new Promise(resolve => {
       this._lockReleased_resolve = resolve;
@@ -18,29 +26,29 @@ export default class ExclusiveStreamReader {
   }
 
   get ready() {
-    ensureStreamReaderIsExclusive(this);
+    EnsureStreamReaderIsExclusive(this);
 
-    this._stream._reader = undefined;
+    this._setReader(this._stream, undefined);
     try {
       return this._stream.ready;
     } finally {
-      this._stream._reader = this;
+      this._setReader(this._stream, this);
     }
   }
 
   get state() {
-    ensureStreamReaderIsExclusive(this);
+    EnsureStreamReaderIsExclusive(this);
 
-    this._stream._reader = undefined;
+    this._setReader(this._stream, undefined);
     try {
       return this._stream.state;
     } finally {
-      this._stream._reader = this;
+      this._setReader(this._stream, this);
     }
   }
 
   get closed() {
-    ensureStreamReaderIsExclusive(this);
+    EnsureStreamReaderIsExclusive(this);
 
     return this._stream.closed;
   }
@@ -50,18 +58,18 @@ export default class ExclusiveStreamReader {
   }
 
   read(...args) {
-    ensureStreamReaderIsExclusive(this);
+    EnsureStreamReaderIsExclusive(this);
 
-    this._stream._reader = undefined;
+    this._setReader(this._stream, undefined);
     try {
       return this._stream.read(...args);
     } finally {
-      this._stream._reader = this;
+      this._setReader(this._stream, this);
     }
   }
 
   cancel(reason, ...args) {
-    ensureStreamReaderIsExclusive(this);
+    EnsureStreamReaderIsExclusive(this);
 
     var stream = this._stream;
     this.releaseLock();
@@ -69,37 +77,14 @@ export default class ExclusiveStreamReader {
   }
 
   releaseLock() {
-    if (this._stream === undefined) {
-      return;
-    }
-
-    this._stream._reader = undefined;
+    this._setReader(this._stream, undefined);
     this._stream = undefined;
     this._lockReleased_resolve(undefined);
   }
-
-  static isLocked(stream) {
-    ensureIsRealStream(stream);
-
-    return stream._reader !== undefined;
-  }
 }
 
-// These do not appear in the spec (thus the lower-case names), since they're one-liners in spec text anyway, but we
-// factor them out into helper functions in the reference implementation just for brevity's sake, and to emphasize that
-// the error message is the same in all places they're called, and to give us the opportunity to add an assert.
-
-function ensureStreamReaderIsExclusive(reader) {
-  if (reader._stream === undefined) {
+function EnsureStreamReaderIsExclusive(reader) {
+  if (reader._getReader(reader._stream) !== reader) {
     throw new TypeError('This stream reader has released its lock on the stream and can no longer be used');
-  }
-
-  assert(reader._stream._reader === reader,
-    'If the reader has a [[stream]] then the stream\'s [[reader]] must be this reader');
-}
-
-function ensureIsRealStream(stream) {
-  if (!('_reader' in stream)) {
-    throw new TypeError('ExclusiveStreamReader can only be used with ReadableStream objects or subclasses');
   }
 }
