@@ -27,7 +27,7 @@ Example code:
 ```js
 function readAsJson(rs) {
     var string = "";
-    var reader = new ExclusiveStreamReader(rs);
+    var reader = rs.getReader();
 
     pump();
 
@@ -94,8 +94,6 @@ It is unclear whether this is necessary, but up until now we have a high level o
 If we encourage this kind of thing, we should make it easy for custom readable streams to be lockable as well. That basically means `ExclusiveStreamReader` should not require knowledge of `ReadableStream`'s internal slots.
 
 We can work around this if necessary by passing `ExclusiveStreamReader` any capabilities it needs to manipulate `ReadableStream`'s internal state; then people reimplementing the readable stream interface can do e.g. `new ExclusiveStreamReader(this, { getLock, setLock })` or similar.
-
-This would probably impact API, by switching us to a `rs.getReader()` interface that calls the constructor, instead of a `new ExclusiveStreamReader(stream)` interface.
 
 ## Optimizability
 

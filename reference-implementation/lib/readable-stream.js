@@ -77,6 +77,10 @@ export default class ReadableStream {
     return sourceCancelPromise.then(() => undefined);
   }
 
+  getReader() {
+    return new ExclusiveStreamReader(this);
+  }
+
   pipeThrough({ writable, readable }, options) {
     if (!helpers.typeIsObject(writable)) {
       throw new TypeError('A transform stream must have an writable property that is an object.');
@@ -91,7 +95,7 @@ export default class ReadableStream {
   }
 
   pipeTo(dest, { preventClose, preventAbort, preventCancel } = {}) {
-    var source = new ExclusiveStreamReader(this);
+    var source = this.getReader();
     preventClose = Boolean(preventClose);
     preventAbort = Boolean(preventAbort);
     preventCancel = Boolean(preventCancel);
