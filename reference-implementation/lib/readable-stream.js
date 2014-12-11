@@ -359,11 +359,13 @@ function CloseReadableStream(stream) {
   stream._state = 'closed';
   stream._resolveClosedPromise(undefined);
 
-  if (stream._reader === undefined) {
+// See https://github.com/whatwg/streams/pull/251#issuecomment-66701976
+// To be decided
+/*  if (stream._reader === undefined) {
     return;
   }
 
-  stream._reader.releaseLock();
+  stream._reader.releaseLock();*/
 }
 
 var defaultReadableStreamStrategy = {
