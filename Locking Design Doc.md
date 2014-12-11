@@ -63,21 +63,9 @@ The reader should have all of the non-piping-related public interface of the str
 - `read()` method, which has the same behavior as that of the stream's except that it works while the stream is locked
 - `cancel()` method, which first calls `this.releaseLock()` before the pass-through
 
-Additionally, it should be possible to check whether a stream is locked. A few candidate syntaxes:
+While a stream is locked, it is indistinguishable from a stream that has been drained of all chunks and is not getting any more enqueued. We could consider adding some kind of test, like `stream.isLocked`, to distinguish. However, it's not clear there's a compelling reason for doing so (let us know if so?), and the indistinguishability is kind of a nice property from the perspective of the principle of least authority.
 
-```js
-stream.isLocked
-ExclusiveStreamReader.isLocked(stream)
-```
-
-Finally it is probably a good idea to be able to tell if a reader is still active/has been released. One of these two maybe:
-
-```js
-reader.isReleased
-reader.isActive // inverse
-```
-
-(For now we have settled on `ExclusiveStreamReader.isLocked(stream)` and `reader.isActive`.)
+For readers, you should be able to tell if they're still active (i.e. have not been released) via `reader.isActive`.
 
 ### Level 2: subclassers of `ReadableStream`
 

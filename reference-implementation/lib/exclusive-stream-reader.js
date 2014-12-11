@@ -91,12 +91,6 @@ export default class ExclusiveStreamReader {
     this._stream = undefined;
     this._lockReleased_resolve(undefined);
   }
-
-  static isLocked(stream) {
-    ensureIsRealStream(stream);
-
-    return stream._reader !== undefined;
-  }
 }
 
 // These do not appear in the spec (thus the lower-case names), since they're one-liners in spec text anyway, but we
