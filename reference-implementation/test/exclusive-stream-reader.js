@@ -90,3 +90,37 @@ test('Trying to use a released reader', t => {
     e => t.equal(e.constructor, TypeError, 'cancel() should be rejected with a TypeError')
   );
 });
+
+test('cancel() on a reader implicitly releases the reader before calling through', t => {
+  t.plan(3);
+
+  var passedReason = new Error('it wasn\'t the right time, sorry');
+  var rs = new ReadableStream({
+    cancel(reason) {
+      t.equal(reason, passedReason, 'the cancellation reason is passed through to the underlying source');
+    }
+  });
+
+  var reader = rs.getReader();
+  reader.cancel(passedReason).then(
+    () => t.pass('reader.cancel() should fulfill'),
+    e => t.fail('reader.cancel() should not reject')
+  );
+
+  t.equal(reader.isActive, false, 'canceling via the reader should release the reader\'s lock');
+});
+
+test('cancel() on a reader calls this.releaseLock directly instead of cheating', t => {
+  t.plan(3);
+
+  var rs = new ReadableStream();
+
+  var reader = rs.getReader();
+  reader.releaseLock = function (...args) {
+    t.pass('releaseLock was called directly');
+    t.equal(args.length, 0, 'no arguments were passed');
+    t.equal(this, reader, 'the correct this value was passed');
+  };
+
+  reader.cancel();
+});
