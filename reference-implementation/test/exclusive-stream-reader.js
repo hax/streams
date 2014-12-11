@@ -3,7 +3,7 @@ var test = require('tape');
 import ReadableStream from '../lib/readable-stream';
 
 test('Using the reader directly on a mundane stream', t => {
-  t.plan(16);
+  t.plan(20);
 
   var rs = new ReadableStream({
     start(enqueue, close) {
@@ -26,24 +26,31 @@ test('Using the reader directly on a mundane stream', t => {
   t.equal(reader.read(), 'a', 'trying to read from the reader works and gives back the first enqueued value');
   t.equal(reader.state, 'waiting', 'the reader state is now waiting since the queue has been drained');
 
-  rs.ready.then(() => {
-    t.equal(rs.state, 'closed', 'ready for stream is not fulfilled until the stream closes');
-    t.equal(reader.isActive, false, 'the reader is no longer active after the stream has closed');
-  });
-
   reader.ready.then(() => {
     t.equal(reader.state, 'readable', 'ready for reader is fulfilled when second chunk is enqueued');
     t.equal(rs.state, 'waiting', 'the stream state is still waiting');
     t.equal(reader.read(), 'b', 'you can read the second chunk from the reader');
   });
 
-  rs.closed.then(() => {
-    t.pass('closed for the stream is fulfilled');
-    t.equal(rs.state, 'closed', 'the stream state is closed');
-  });
-
   reader.closed.then(() => {
     t.pass('closed for the reader is fulfilled');
+    t.equal(reader.state, 'closed', 'the reader state is closed');
+    t.equal(rs.state, 'waiting', 'the stream state is still waiting');
+    t.equal(reader.isActive, true, 'the reader is still active');
+
+    reader.releaseLock();
+
+    t.equal(reader.isActive, false, 'the reader is no longer active');
+    t.equal(rs.state, 'closed', 'the stream state is now closed');
+  });
+
+  rs.ready.then(() => {
+    t.equal(rs.state, 'closed', 'ready for stream is not fulfilled until the stream closes');
+    t.equal(reader.isActive, false, 'the reader is no longer active after the stream has closed');
+  });
+
+  rs.closed.then(() => {
+    t.pass('closed for the stream is fulfilled');
     t.equal(rs.state, 'closed', 'the stream state is closed');
   });
 });

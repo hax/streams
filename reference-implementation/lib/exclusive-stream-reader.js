@@ -42,7 +42,12 @@ export default class ExclusiveStreamReader {
   get closed() {
     ensureStreamReaderIsExclusive(this);
 
-    return this._stream.closed;
+    this._stream._reader = undefined;
+    try {
+      return this._stream.closed;
+    } finally {
+      this._stream._reader = this;
+    }
   }
 
   get isActive() {

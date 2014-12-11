@@ -48,6 +48,10 @@ export default class ReadableStream {
   }
 
   get closed() {
+    if (this._reader !== undefined) {
+      return this._reader._lockReleased.then(() => this._closedPromise);
+    }
+
     return this._closedPromise;
   }
 
