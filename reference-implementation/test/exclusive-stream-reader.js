@@ -3,7 +3,7 @@ var test = require('tape');
 import ReadableStream from '../lib/readable-stream';
 
 test('Using the reader directly on a mundane stream', t => {
-  t.plan(20);
+  t.plan(21);
 
   var rs = new ReadableStream({
     start(enqueue, close) {
@@ -25,6 +25,10 @@ test('Using the reader directly on a mundane stream', t => {
   t.throws(() => rs.read(), /TypeError/, 'trying to read from the stream directly throws a TypeError');
   t.equal(reader.read(), 'a', 'trying to read from the reader works and gives back the first enqueued value');
   t.equal(reader.state, 'waiting', 'the reader state is now waiting since the queue has been drained');
+  rs.cancel().then(
+    () => t.fail('cancel() should not be fulfilled'),
+    e => t.equal(e.constructor, TypeError, 'cancel() should be rejected with a TypeError')
+  );
 
   reader.ready.then(() => {
     t.equal(reader.state, 'readable', 'ready for reader is fulfilled when second chunk is enqueued');
