@@ -1,7 +1,6 @@
 var assert = require('assert');
 import * as helpers from '../helpers';
 import ReadableStream from '../readable-stream';
-import ExclusiveStreamReader from '../exclusive-stream-reader';
 
 function notifyReady(stream) {
   if (stream._state !== 'waiting') {
@@ -59,7 +58,6 @@ export default class ReadableByteStream {
     }
 
     this._state = 'waiting';
-    this._byteStreamReader = undefined;
 
     this._onReadInto = readInto;
     this._onCancel = cancel;
@@ -171,13 +169,6 @@ export default class ReadableByteStream {
     return resizedArrayBuffer;
   }
 
-  getReader() {
-    return new ExclusiveStreamReader(this, {
-      getReader: getReadableByteStreamReader,
-      setReader: setReadableByteStreamReader
-    });
-  }
-
   // Note: We plan to make this more efficient in the future. But for now this
   // implementation suffices to show interoperability with a generic
   // WritableStream.
@@ -231,12 +222,4 @@ export default class ReadableByteStream {
     this._closedPromise_resolve = null;
     this._closedPromise_reject = null;
   }
-}
-
-function getReadableByteStreamReader(stream) {
-  return stream._byteStreamReader;
-}
-
-function setReadableByteStreamReader(stream, reader) {
-  stream._byteStreamReader = reader;
 }
