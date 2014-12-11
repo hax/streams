@@ -54,3 +54,35 @@ test('Using the reader directly on a mundane stream', t => {
     t.equal(rs.state, 'closed', 'the stream state is closed');
   });
 });
+
+test('Trying to use a released reader', t => {
+  t.plan(6);
+
+  var rs = new ReadableStream({
+    start(enqueue) {
+      enqueue('a');
+      enqueue('b');
+    }
+  });
+  var reader = rs.getReader();
+  reader.releaseLock();
+
+  t.equal(reader.isActive, false, 'isActive returns false');
+  t.throws(() => reader.state, /TypeError/, 'trying to get reader.state gives a TypeError');
+  t.throws(() => reader.read(), /TypeError/, 'trying to read gives a TypeError');
+
+  reader.ready.then(
+    () => t.fail('ready should not be fulfilled'),
+    e => t.equal(e.constructor, TypeError, 'ready should be rejected with a TypeError')
+  );
+
+  reader.closed.then(
+    () => t.fail('closed should not be fulfilled'),
+    e => t.equal(e.constructor, TypeError, 'closed should be rejected with a TypeError')
+  );
+
+  reader.cancel().then(
+    () => t.fail('cancel() should not be fulfilled'),
+    e => t.equal(e.constructor, TypeError, 'cancel() should be rejected with a TypeError')
+  );
+});

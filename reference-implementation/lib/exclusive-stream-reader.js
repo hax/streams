@@ -18,7 +18,10 @@ export default class ExclusiveStreamReader {
   }
 
   get ready() {
-    ensureStreamReaderIsExclusive(this);
+    if (this._stream === undefined) {
+      return Promise.reject(isNotLockedError());
+    }
+    assertStreamReaderRelationshipIsCorrect(this);
 
     this._stream._reader = undefined;
     try {
@@ -40,7 +43,10 @@ export default class ExclusiveStreamReader {
   }
 
   get closed() {
-    ensureStreamReaderIsExclusive(this);
+    if (this._stream === undefined) {
+      return Promise.reject(isNotLockedError());
+    }
+    assertStreamReaderRelationshipIsCorrect(this);
 
     this._stream._reader = undefined;
     try {
@@ -66,7 +72,10 @@ export default class ExclusiveStreamReader {
   }
 
   cancel(reason, ...args) {
-    ensureStreamReaderIsExclusive(this);
+    if (this._stream === undefined) {
+      return Promise.reject(isNotLockedError());
+    }
+    assertStreamReaderRelationshipIsCorrect(this);
 
     var stream = this._stream;
     this.releaseLock();
@@ -94,17 +103,25 @@ export default class ExclusiveStreamReader {
 // factor them out into helper functions in the reference implementation just for brevity's sake, and to emphasize that
 // the error message is the same in all places they're called, and to give us the opportunity to add an assert.
 
-function ensureStreamReaderIsExclusive(reader) {
-  if (reader._stream === undefined) {
-    throw new TypeError('This stream reader has released its lock on the stream and can no longer be used');
-  }
-
+function assertStreamReaderRelationshipIsCorrect(reader) {
   assert(reader._stream._reader === reader,
     'If the reader has a [[stream]] then the stream\'s [[reader]] must be this reader');
+}
+
+function ensureStreamReaderIsExclusive(reader) {
+  if (reader._stream === undefined) {
+    throw isNotLockedError();
+  }
+
+  assertStreamReaderRelationshipIsCorrect(reader);
 }
 
 function ensureIsRealStream(stream) {
   if (!('_reader' in stream)) {
     throw new TypeError('ExclusiveStreamReader can only be used with ReadableStream objects or subclasses');
   }
+}
+
+function isNotLockedError() {
+  return new TypeError('This stream reader has released its lock on the stream and can no longer be used');
 }
