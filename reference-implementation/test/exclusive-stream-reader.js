@@ -59,7 +59,70 @@ test('Using the reader directly on a mundane stream', t => {
   });
 });
 
-test('Trying to use a released reader', t => {
+test('Readers delegate to underlying stream implementations', t => {
+  t.plan(3 * 3 + 2 * 4);
+
+  var rs = new ReadableStream();
+  var reader = rs.getReader();
+
+  testGetter('ready');
+  testGetter('state');
+  testGetter('closed');
+  testMethod('read');
+  testMethod('cancel');
+
+  // Generates 4 assertions
+  function testGetter(propertyName) {
+    Object.defineProperty(rs, propertyName, {
+      get() {
+        t.pass('overriden ' + propertyName + ' called');
+        t.equal(this, rs, propertyName + ' called with the correct this value');
+        return propertyName + ' return value';
+      }
+    });
+    t.equal(reader[propertyName], propertyName + ' return value',
+      `reader's ${propertyName} returns the return value of the stream's ${propertyName}`);
+  }
+
+  // Generates 5 assertions
+  function testMethod(methodName) {
+    var testArgs = ['arg1', 'arg2', 'arg3'];
+    rs[methodName] = function (...args) {
+      t.pass('overridden ' + methodName + ' called');
+      t.deepEqual(args, testArgs, methodName + ' called with the correct arguments');
+      t.equal(this, rs, methodName + ' called with the correct this value');
+      return methodName + ' return value';
+    }
+    t.equal(reader[methodName](...testArgs), methodName + ' return value',
+      `reader's ${methodName} returns the return value of the stream's ${methodName}`);
+  }
+});
+
+test('Reading from a reader for an empty stream throws but doesn\'t break anything', t => {
+  var enqueue;
+  var rs = new ReadableStream({
+    start(e) {
+      enqueue = e;
+    }
+  });
+  var reader = rs.getReader();
+
+  t.equal(reader.isActive, true, 'reader is active to start with');
+  t.equal(reader.state, 'waiting', 'reader state is waiting to start with');
+  t.throws(() => reader.read(), /TypeError/, 'calling reader.read() throws a TypeError');
+  t.equal(reader.isActive, true, 'reader is still active');
+  t.equal(reader.state, 'waiting', 'reader state is still waiting');
+
+  enqueue('a');
+
+  reader.ready.then(() => {
+    t.equal(reader.state, 'readable', 'after enqueuing the reader state is readable');
+    t.equal(reader.read(), 'a', 'the enqueued chunk can be read back through the reader');
+    t.end();
+  });
+});
+
+test('Trying to use a released reader should fail', t => {
   t.plan(6);
 
   var rs = new ReadableStream({
