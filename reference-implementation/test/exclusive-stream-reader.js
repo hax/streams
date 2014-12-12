@@ -187,3 +187,8 @@ test('cancel() on a reader calls this.releaseLock directly instead of cheating',
 
   reader.cancel();
 });
+
+// TODO: test that you can read(), get reader and read() from it, release, read() from stream, get another reader and
+// read() from it, release, read() from stream.
+
+// TODO: test streams that error
