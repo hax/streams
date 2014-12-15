@@ -222,6 +222,86 @@ test('getReader() on an errored stream should rethrow the error', t => {
   t.end();
 });
 
+test('closed should be fulfilled after reader releases its lock (both .closed accesses after acquiring)', t => {
+  t.plan(2);
+
+  var doClose;
+  var rs = new ReadableStream({
+    start(enqueue, close) {
+      doClose = close;
+    }
+  });
+
+  var reader = rs.getReader();
+  doClose();
+
+  reader.closed.then(() => {
+    t.equal(reader.isActive, true, 'reader is still active when reader closed is fulfilled');
+    reader.releaseLock();
+  });
+
+  rs.closed.then(() => {
+    t.equal(reader.isActive, false, 'reader is no longer active when stream closed is fulfilled');
+  });
+});
+
+test('closed should be fulfilled after reader releases its lock (stream .closed access before acquiring)', t => {
+  t.plan(2);
+
+  var doClose;
+  var rs = new ReadableStream({
+    start(enqueue, close) {
+      doClose = close;
+    }
+  });
+
+  rs.closed.then(() => {
+    t.equal(reader.isActive, false, 'reader is no longer active when stream closed is fulfilled');
+  });
+
+  var reader = rs.getReader();
+  doClose();
+
+  reader.closed.then(() => {
+    t.equal(reader.isActive, true, 'reader is still active when reader closed is fulfilled');
+    reader.releaseLock();
+  });
+});
+
+test('closed should be fulfilled after reader releases its lock (multiple stream locks)', t => {
+  t.plan(5);
+
+  var doClose;
+  var rs = new ReadableStream({
+    start(enqueue, close) {
+      doClose = close;
+    }
+  });
+
+  var reader1 = rs.getReader();
+
+  rs.closed.then(() => {
+    t.equal(reader1.isActive, false, 'reader1 is no longer active when stream closed is fulfilled');
+    t.equal(reader2.isActive, false, 'reader2 is no longer active when stream closed is fulfilled');
+  });
+
+  reader1.releaseLock();
+
+  var reader2 = rs.getReader();
+  doClose();
+
+  reader1.closed.then(
+    () => t.fail('reader1 closed should not be fulfilled'),
+    e => t.equal(e.constructor, TypeError, 'reader1 closed should be rejected with a TypeError')
+  );
+
+  reader2.closed.then(() => {
+    t.equal(reader1.isActive, false, 'reader1 is no longer active when reader2 closed is fulfilled');
+    t.equal(reader2.isActive, true, 'reader2 is still active when reader2 closed is fulfilled');
+    reader2.releaseLock();
+  });
+});
+
 // TODO: test that you can read(), get reader and read() from it, release, read() from stream, get another reader and
 // read() from it, release, read() from stream.
 
