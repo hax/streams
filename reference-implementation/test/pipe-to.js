@@ -128,34 +128,30 @@ test('Piping from a ReadableStream in readable state to a WritableStream in erro
 });
 
 test('Piping from a ReadableStream in closed state to a WritableStream in writable state', t => {
+  t.plan(3);
+
   var rs = new ReadableStream({
     start(enqueue, close) {
       close();
     },
     pull() {
       t.fail('Unexpected pull call');
-      t.end();
     },
     cancel(reason) {
       t.fail('Unexpected cancel call');
-      t.end();
     }
   });
   t.equal(rs.state, 'closed');
 
-  var closeCalled = false;
   var ws = new WritableStream({
     write() {
       t.fail('Unexpected write call');
-      t.end();
     },
     close() {
-      t.assert(!closeCalled);
-      closeCalled = true;
+      t.fail('Unexpected close call');
     },
     abort() {
       t.fail('Unexpected abort call');
-      t.end();
     }
   });
 
@@ -163,42 +159,39 @@ test('Piping from a ReadableStream in closed state to a WritableStream in writab
   setTimeout(() => {
     t.equal(ws.state, 'writable');
 
-    rs.pipeTo(ws);
-    t.assert(closeCalled);
-    t.equal(ws.state, 'closing');
-    t.end();
+    rs.pipeTo(ws).then(
+      () => t.fail('pipeTo promise should not be fulfilled'),
+      e => t.equal(e.constructor, TypeError, 'pipeTo promise should be rejected with a TypeError')
+    );
   }, 0);
 });
 
 test('Piping from a ReadableStream in errored state to a WritableStream in writable state', t => {
+  t.plan(3);
+
+  var theError = new Error('piping is too hard today');
   var rs = new ReadableStream({
     start(enqueue, close, error) {
-      error();
+      error(theError);
     },
     pull() {
       t.fail('Unexpected pull call');
-      t.end();
     },
     cancel(reason) {
       t.fail('Unexpected cancel call');
-      t.end();
     }
   });
   t.equal(rs.state, 'errored');
 
-  var abortCalled = false;
   var ws = new WritableStream({
     write() {
       t.fail('Unexpected write call');
-      t.end();
     },
     close() {
       t.fail('Unexpected close call');
-      t.end();
     },
     abort() {
-      t.assert(!abortCalled);
-      abortCalled = true;
+      t.fail('Unexpected abort call');
     }
   });
 
@@ -206,14 +199,10 @@ test('Piping from a ReadableStream in errored state to a WritableStream in writa
   setTimeout(() => {
     t.equal(ws.state, 'writable');
 
-    rs.pipeTo(ws);
-
-    // Need to delay because pipeTo retrieves error from dest using ready.
-    setTimeout(() => {
-      t.assert(abortCalled);
-      t.equal(ws.state, 'errored');
-      t.end();
-    }, 0);
+    rs.pipeTo(ws).then(
+      () => t.fail('pipeTo promise should not be fulfilled'),
+      e => t.equal(e, theError, 'pipeTo promise should be rejected with the passed error')
+    );
   }, 0);
 });
 

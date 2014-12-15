@@ -111,11 +111,11 @@ export default class ReadableStream {
   }
 
   pipeTo(dest, { preventClose, preventAbort, preventCancel } = {}) {
-    var source = this.getReader();
     preventClose = Boolean(preventClose);
     preventAbort = Boolean(preventAbort);
     preventCancel = Boolean(preventCancel);
 
+    var source;
     var resolvePipeToPromise;
     var rejectPipeToPromise;
 
@@ -123,6 +123,7 @@ export default class ReadableStream {
       resolvePipeToPromise = resolve;
       rejectPipeToPromise = reject;
 
+      source = this.getReader();
       doPipe();
     });
 
