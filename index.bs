@@ -152,7 +152,7 @@ based the total size of all chunks in the stream's internal queue.
 
 <!-- TODO: writable streams too, probably -->
 
-A <dfn>exclusive stream reader</dfn> or simply reader is an object that encapsulates a <a>readable stream</a>,
+An <dfn>exclusive stream reader</dfn> or simply reader is an object that encapsulates a <a>readable stream</a>,
 preventing access to the stream except through the reader's interface. We say in this case the stream is
 <dfn title="locked to a reader">locked to the reader</dfn>, and that the reader is
 <dfn title="active reader">active</dfn>.
@@ -626,6 +626,8 @@ Instances of <code>ReadableStream</code> are created with the internal slots des
 </div>
 
 <ol>
+  <li> If <b>this</b>@\[[state]] is <code>"closed"</code>, throw a <b>TypeError</b> exception.
+  <li> If <b>this</b>@\[[state]] is <code>"errored"</code>, throw <b>this</b>@\[[storedError]].
   <li> Return Construct(<code>ExclusiveStreamReader</code>, (<b>this</b>)).
 </ol>
 

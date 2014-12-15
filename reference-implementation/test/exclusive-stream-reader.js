@@ -188,6 +188,40 @@ test('cancel() on a reader calls this.releaseLock directly instead of cheating',
   reader.cancel();
 });
 
+test('getReader() on a closed stream should fail', t => {
+  var rs = new ReadableStream({
+    start(enqueue, close) {
+      close();
+    }
+  });
+
+  t.equal(rs.state, 'closed', 'the stream should be closed');
+  t.throws(() => rs.getReader(), /TypeError/, 'getReader() threw a TypeError');
+  t.end();
+});
+
+test('getReader() on a cancelled stream should fail (since cancelling closes)', t => {
+  var rs = new ReadableStream();
+  rs.cancel(new Error('fun time is over'));
+
+  t.equal(rs.state, 'closed', 'the stream should be closed');
+  t.throws(() => rs.getReader(), /TypeError/, 'getReader() threw a TypeError');
+  t.end();
+});
+
+test('getReader() on an errored stream should rethrow the error', t => {
+  var theError = new Error('don\'t say i didn\'t warn ya');
+  var rs = new ReadableStream({
+    start(enqueue, close, error) {
+      error(theError);
+    }
+  });
+
+  t.equal(rs.state, 'errored', 'the stream should be errored');
+  t.throws(() => rs.getReader(), /don't say i didn't warn ya/, 'getReader() threw the error');
+  t.end();
+});
+
 // TODO: test that you can read(), get reader and read() from it, release, read() from stream, get another reader and
 // read() from it, release, read() from stream.
 

@@ -87,6 +87,13 @@ export default class ReadableStream {
   }
 
   getReader() {
+    if (this._state === 'closed') {
+      throw new TypeError('The stream has already been closed, so a reader cannot be acquired.');
+    }
+    if (this._state === 'errored') {
+      throw this._storedError;
+    }
+
     return new ExclusiveStreamReader(this);
   }
 
